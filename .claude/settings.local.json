@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "WebFetch(domain:dl-cdn.ryzerobotics.com)"
+      "WebFetch(domain:dl-cdn.ryzerobotics.com)",
+      "Bash(npx create-expo-app:*)"
     ],
     "deny": [],
     "ask": []
