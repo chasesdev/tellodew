@@ -153,6 +153,18 @@ export default function FlyScreen() {
             </View>
           </View>
 
+          {/* Mission Pad Detection */}
+          {state.missionPadId !== undefined && state.missionPadId >= 0 && (
+            <View style={styles.missionPadInfo}>
+              <Text style={styles.missionPadTitle}>Mission Pad {state.missionPadId}</Text>
+              <View style={styles.missionPadCoords}>
+                <Text style={styles.missionPadCoord}>X: {state.missionPadX ?? 0}cm</Text>
+                <Text style={styles.missionPadCoord}>Y: {state.missionPadY ?? 0}cm</Text>
+                <Text style={styles.missionPadCoord}>Z: {state.missionPadZ ?? 0}cm</Text>
+              </View>
+            </View>
+          )}
+
           {/* Status Badge */}
           <View style={styles.statusBadge}>
             <View style={[styles.statusDot, isFlying && styles.statusFlying]} />
@@ -372,6 +384,28 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  missionPadInfo: {
+    backgroundColor: 'rgba(139, 92, 246, 0.8)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  missionPadTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  missionPadCoords: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  missionPadCoord: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '500',
   },
   controls: {
     backgroundColor: '#1a1a1a',

@@ -19,6 +19,11 @@ export interface TelloState {
     y: number;
     z: number;
   };
+  // Mission Pad fields (SDK 3.0)
+  missionPadId?: number; // Mission pad ID (1-8), -1 if not detected
+  missionPadX?: number; // X position relative to mission pad (cm)
+  missionPadY?: number; // Y position relative to mission pad (cm)
+  missionPadZ?: number; // Z position relative to mission pad (cm)
 }
 
 export interface TelloResponse {

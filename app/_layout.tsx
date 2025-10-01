@@ -1,3 +1,4 @@
+import '../polyfills';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
@@ -33,6 +34,12 @@ export default function RootLayout() {
           options={{
             title: 'Flight Control',
             headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
           }}
         />
       </Stack>

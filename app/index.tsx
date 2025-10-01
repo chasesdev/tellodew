@@ -29,6 +29,12 @@ export default function HomeScreen() {
           </Pressable>
         </Link>
 
+        <Link href="/settings" asChild>
+          <Pressable style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Settings</Text>
+          </Pressable>
+        </Link>
+
         <Text style={styles.instructions}>
           Make sure your device is connected to the Tello WiFi network before proceeding.
         </Text>
@@ -90,6 +96,18 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    backgroundColor: '#555',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
   instructions: {

@@ -327,6 +327,18 @@ export class TelloService {
           if (key === 'agy') state.acceleration.y = numValue;
           if (key === 'agz') state.acceleration.z = numValue;
           break;
+        case 'mid':
+          state.missionPadId = numValue;
+          break;
+        case 'x':
+          state.missionPadX = numValue;
+          break;
+        case 'y':
+          state.missionPadY = numValue;
+          break;
+        case 'z':
+          state.missionPadZ = numValue;
+          break;
       }
     }
 
@@ -378,14 +390,52 @@ export class TelloService {
    * Start video stream
    */
   async streamOn(): Promise<TelloResponse> {
-    return this.sendCommand({ command: 'streamon' });
+    try {
+      // Create and bind video socket if not already created
+      if (!this.videoSocket) {
+        this.videoSocket = dgram.createSocket({
+          type: 'udp4',
+          reusePort: true,
+        });
+
+        await this.bindSocket(this.videoSocket, this.config.videoPort);
+
+        // Set up video socket error handling
+        this.videoSocket.on('error', (err) => {
+          console.error('Video socket error:', err);
+        });
+
+        this.videoSocket.on('message', (msg: Buffer) => {
+          // Video data is received here
+          // react-native-video will handle the UDP stream directly
+          // This listener is mainly for debugging/logging
+          console.log(`Received video packet: ${msg.length} bytes`);
+        });
+      }
+
+      // Send streamon command to drone
+      return this.sendCommand({ command: 'streamon' });
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to start video stream',
+      };
+    }
   }
 
   /**
    * Stop video stream
    */
   async streamOff(): Promise<TelloResponse> {
-    return this.sendCommand({ command: 'streamoff' });
+    const response = await this.sendCommand({ command: 'streamoff' });
+
+    // Close video socket
+    if (this.videoSocket) {
+      this.videoSocket.close();
+      this.videoSocket = null;
+    }
+
+    return response;
   }
 
   /**
@@ -476,6 +526,315 @@ export class TelloService {
     // Send zero velocities to stop
     this.sendRCControl(0, 0, 0, 0);
     return { success: true, message: 'Stopped' };
+  }
+
+  // ====== SDK 3.0 Mission Pad Commands ======
+
+  /**
+   * Enable mission pad detection
+   */
+  async enableMissionPads(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'mon' });
+  }
+
+  /**
+   * Disable mission pad detection
+   */
+  async disableMissionPads(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'moff' });
+  }
+
+  /**
+   * Set mission pad detection direction
+   * @param direction 0=downward, 1=forward, 2=both
+   */
+  async setMissionPadDetectionDirection(direction: 0 | 1 | 2): Promise<TelloResponse> {
+    return this.sendCommand({ command: `mdirection ${direction}` });
+  }
+
+  /**
+   * Fly to x y z position relative to mission pad at speed
+   * @param x -500 to 500 cm
+   * @param y -500 to 500 cm
+   * @param z -500 to 500 cm
+   * @param speed 10-100 cm/s
+   * @param mid Mission pad ID (1-8)
+   */
+  async goXYZSpeedMid(x: number, y: number, z: number, speed: number, mid: number): Promise<TelloResponse> {
+    if (x < -500 || x > 500 || y < -500 || y > 500 || z < -500 || z > 500) {
+      return { success: false, message: 'Coordinates must be -500 to 500 cm' };
+    }
+    if (speed < 10 || speed > 100) {
+      return { success: false, message: 'Speed must be 10-100 cm/s' };
+    }
+    if (mid < 1 || mid > 8) {
+      return { success: false, message: 'Mission pad ID must be 1-8' };
+    }
+    return this.sendCommand({ command: `go ${x} ${y} ${z} ${speed} m${mid}` });
+  }
+
+  /**
+   * Fly a curve relative to mission pad
+   * @param x1, y1, z1 First coordinate (-500 to 500 cm)
+   * @param x2, y2, z2 Second coordinate (-500 to 500 cm)
+   * @param speed 10-60 cm/s
+   * @param mid Mission pad ID (1-8)
+   */
+  async curveXYZSpeedMid(
+    x1: number, y1: number, z1: number,
+    x2: number, y2: number, z2: number,
+    speed: number,
+    mid: number
+  ): Promise<TelloResponse> {
+    if (x1 < -500 || x1 > 500 || y1 < -500 || y1 > 500 || z1 < -500 || z1 > 500 ||
+        x2 < -500 || x2 > 500 || y2 < -500 || y2 > 500 || z2 < -500 || z2 > 500) {
+      return { success: false, message: 'Coordinates must be -500 to 500 cm' };
+    }
+    if (speed < 10 || speed > 60) {
+      return { success: false, message: 'Speed must be 10-60 cm/s for curves' };
+    }
+    if (mid < 1 || mid > 8) {
+      return { success: false, message: 'Mission pad ID must be 1-8' };
+    }
+    return this.sendCommand({ command: `curve ${x1} ${y1} ${z1} ${x2} ${y2} ${z2} ${speed} m${mid}` });
+  }
+
+  /**
+   * Jump between mission pads
+   * @param x, y, z Position relative to mid2 (-500 to 500 cm)
+   * @param speed 10-100 cm/s
+   * @param yaw Target yaw angle
+   * @param mid1 Starting mission pad ID
+   * @param mid2 Target mission pad ID
+   */
+  async jump(x: number, y: number, z: number, speed: number, yaw: number, mid1: number, mid2: number): Promise<TelloResponse> {
+    if (x < -500 || x > 500 || y < -500 || y > 500 || z < -500 || z > 500) {
+      return { success: false, message: 'Coordinates must be -500 to 500 cm' };
+    }
+    if (speed < 10 || speed > 100) {
+      return { success: false, message: 'Speed must be 10-100 cm/s' };
+    }
+    if (mid1 < 1 || mid1 > 8 || mid2 < 1 || mid2 > 8) {
+      return { success: false, message: 'Mission pad IDs must be 1-8' };
+    }
+    return this.sendCommand({ command: `jump ${x} ${y} ${z} ${speed} ${yaw} m${mid1} m${mid2}` });
+  }
+
+  // ====== Advanced Movement Commands ======
+
+  /**
+   * Fly to x y z position at speed (no mission pad)
+   * @param x -500 to 500 cm
+   * @param y -500 to 500 cm
+   * @param z -500 to 500 cm
+   * @param speed 10-100 cm/s
+   */
+  async goXYZSpeed(x: number, y: number, z: number, speed: number): Promise<TelloResponse> {
+    if (x < -500 || x > 500 || y < -500 || y > 500 || z < -500 || z > 500) {
+      return { success: false, message: 'Coordinates must be -500 to 500 cm' };
+    }
+    if (speed < 10 || speed > 100) {
+      return { success: false, message: 'Speed must be 10-100 cm/s' };
+    }
+    return this.sendCommand({ command: `go ${x} ${y} ${z} ${speed}` });
+  }
+
+  /**
+   * Fly a curve (no mission pad)
+   * @param x1, y1, z1 First coordinate (-500 to 500 cm)
+   * @param x2, y2, z2 Second coordinate (-500 to 500 cm)
+   * @param speed 10-60 cm/s
+   */
+  async curveXYZSpeed(
+    x1: number, y1: number, z1: number,
+    x2: number, y2: number, z2: number,
+    speed: number
+  ): Promise<TelloResponse> {
+    if (x1 < -500 || x1 > 500 || y1 < -500 || y1 > 500 || z1 < -500 || z1 > 500 ||
+        x2 < -500 || x2 > 500 || y2 < -500 || y2 > 500 || z2 < -500 || z2 > 500) {
+      return { success: false, message: 'Coordinates must be -500 to 500 cm' };
+    }
+    if (speed < 10 || speed > 60) {
+      return { success: false, message: 'Speed must be 10-60 cm/s for curves' };
+    }
+    return this.sendCommand({ command: `curve ${x1} ${y1} ${z1} ${x2} ${y2} ${z2} ${speed}` });
+  }
+
+  // ====== Video Configuration Commands ======
+
+  /**
+   * Set video bitrate
+   * @param bitrate 0=auto, 1-5 = 1-5 Mbps
+   */
+  async setVideoBitrate(bitrate: 0 | 1 | 2 | 3 | 4 | 5): Promise<TelloResponse> {
+    return this.sendCommand({ command: `setbitrate ${bitrate}` });
+  }
+
+  /**
+   * Set video resolution
+   * @param resolution 'high'=720p, 'low'=480p
+   */
+  async setVideoResolution(resolution: 'high' | 'low'): Promise<TelloResponse> {
+    return this.sendCommand({ command: `setresolution ${resolution}` });
+  }
+
+  /**
+   * Set video FPS
+   * @param fps 'high'=30fps, 'middle'=15fps, 'low'=5fps
+   */
+  async setVideoFPS(fps: 'high' | 'middle' | 'low'): Promise<TelloResponse> {
+    return this.sendCommand({ command: `setfps ${fps}` });
+  }
+
+  /**
+   * Set video camera direction
+   * @param direction 0=forward, 1=downward, 2=both (if available)
+   */
+  async setVideoCameraDirection(direction: 0 | 1 | 2): Promise<TelloResponse> {
+    return this.sendCommand({ command: `downvision ${direction}` });
+  }
+
+  // ====== Motor Control Commands ======
+
+  /**
+   * Turn motors on (without takeoff)
+   */
+  async turnMotorOn(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'motoron' });
+  }
+
+  /**
+   * Turn motors off
+   */
+  async turnMotorOff(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'motoroff' });
+  }
+
+  // ====== Query Commands ======
+
+  /**
+   * Query SDK version
+   */
+  async querySdkVersion(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'sdk?' });
+  }
+
+  /**
+   * Query serial number
+   */
+  async querySerialNumber(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'sn?' });
+  }
+
+  /**
+   * Query WiFi signal-to-noise ratio
+   */
+  async queryWifiSNR(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'wifi?' });
+  }
+
+  /**
+   * Query current speed setting
+   */
+  async querySpeed(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'speed?' });
+  }
+
+  /**
+   * Query battery percentage
+   */
+  async queryBattery(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'battery?' });
+  }
+
+  /**
+   * Query flight time
+   */
+  async queryTime(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'time?' });
+  }
+
+  /**
+   * Query current height
+   */
+  async queryHeight(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'height?' });
+  }
+
+  /**
+   * Query temperature range
+   */
+  async queryTemp(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'temp?' });
+  }
+
+  /**
+   * Query attitude (pitch, roll, yaw)
+   */
+  async queryAttitude(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'attitude?' });
+  }
+
+  /**
+   * Query barometer reading
+   */
+  async queryBarometer(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'baro?' });
+  }
+
+  /**
+   * Query time-of-flight distance
+   */
+  async queryTOF(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'tof?' });
+  }
+
+  // ====== WiFi Configuration Commands ======
+
+  /**
+   * Set WiFi credentials for drone AP mode
+   * @param ssid Network SSID
+   * @param password Network password
+   */
+  async setWifiCredentials(ssid: string, password: string): Promise<TelloResponse> {
+    return this.sendCommand({ command: `wifi ${ssid} ${password}` });
+  }
+
+  /**
+   * Connect to WiFi network in station mode
+   * @param ssid Network SSID
+   * @param password Network password
+   */
+  async connectToWifi(ssid: string, password: string): Promise<TelloResponse> {
+    return this.sendCommand({ command: `ap ${ssid} ${password}` });
+  }
+
+  // ====== Special Commands ======
+
+  /**
+   * Reboot the drone
+   */
+  async reboot(): Promise<TelloResponse> {
+    return this.sendCommand({ command: 'reboot', expectResponse: false });
+  }
+
+  /**
+   * Throw and go takeoff mode
+   */
+  async throwTakeoff(): Promise<TelloResponse> {
+    const response = await this.sendCommand({ command: 'throwfly', timeout: 15000 });
+    if (response.success) {
+      this.setConnectionState(ConnectionState.FLYING);
+    }
+    return response;
+  }
+
+  /**
+   * Send expansion command (for LED matrix, etc.)
+   * @param cmd Expansion command string
+   */
+  async sendExpansionCommand(cmd: string): Promise<TelloResponse> {
+    return this.sendCommand({ command: `EXT ${cmd}` });
   }
 
   // Getters
