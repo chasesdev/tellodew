@@ -18,7 +18,9 @@
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "This app needs local network access to communicate with your Tello drone via WiFi",
         "UIRequiresPersistentWiFi": true,
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -27,7 +29,9 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [],
+      "package": "com.chasesdev.tellodew"
     },
     "web": {
       "favicon": "./assets/favicon.png"
